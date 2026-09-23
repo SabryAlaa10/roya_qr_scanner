@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
   :root{
     --navy-900:#0a1830; --navy-800:#0f2340; --navy-700:#16305a;
@@ -235,6 +235,10 @@ if (SUPABASE_URL && SUPABASE_KEY && SCANNER_NAME) {
 // Camera + scan loop
 // ============================================================
 async function startCamera(){
+  if (typeof jsQR === 'undefined') {
+    videoWrap.innerHTML = `<div class="cam-error">⚠️ مكتبة قراءة الـQR (jsQR) مش محمّلة.<br>تأكد إن اتصال الإنترنت شغال وجرّب تحدّث الصفحة (Refresh).</div>`;
+    return;
+  }
   try{
     stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: 'environment' } },
