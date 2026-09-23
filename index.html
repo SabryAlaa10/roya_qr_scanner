@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>نظام تسجيل الحضور — أسرة رؤية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<style>
+  :root{
+    --navy-900:#0a1830; --navy-800:#0f2340; --navy-700:#16305a;
+    --gold-500:#f5a524; --gold-400:#ffb946;
+    --text-light:#eef3fb; --text-muted:#a9b8d1;
+    --danger:#ff6b6b; --warning:#ffb946; --success:#3ddc97;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:'Cairo',sans-serif;
+    background:linear-gradient(160deg,var(--navy-900) 0%, var(--navy-800) 55%, var(--navy-700) 100%);
+    color:var(--text-light);
+    min-height:100%;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  .app{max-width:480px;margin:0 auto;padding:16px;}
+
+  header{display:flex;align-items:center;gap:12px;justify-content:center;padding:12px 0 18px;}
+  header img{width:40px;height:40px;border-radius:50%;background:#fff;padding:4px;object-fit:contain;}
+  header h1{font-size:16px;font-weight:800;margin:0;}
+  header p{margin:2px 0 0;font-size:11.5px;color:var(--text-muted);}
+
+  .panel{
+    background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
+    border-radius:18px;padding:18px;margin-bottom:14px;backdrop-filter:blur(6px);
+  }
+  .panel h2{font-size:14px;margin:0 0 12px;color:var(--gold-400);}
+  label{display:block;font-size:12.5px;margin-bottom:6px;color:var(--text-muted);}
+  input{
+    width:100%;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.14);
+    border-radius:10px;padding:10px 12px;color:var(--text-light);font-family:'Cairo',sans-serif;
+    font-size:14px;margin-bottom:12px;outline:none;
+  }
+  input:focus{border-color:var(--gold-500);}
+  .btn{
+    width:100%;border:none;border-radius:10px;padding:12px;font-family:'Cairo',sans-serif;
+    font-weight:800;font-size:14.5px;cursor:pointer;
+  }
+  .btn-primary{background:linear-gradient(135deg,var(--gold-500),var(--gold-400));color:#1a1200;}
+  .btn-ghost{background:transparent;border:1.5px solid rgba(255,255,255,0.18);color:var(--text-light);}
+
+  #configPanel.hidden, #scannerPanel.hidden, #resultOverlay.hidden{display:none !important;}
+
+  .stats-row{display:flex;gap:10px;margin-bottom:14px;}
+  .stat{
+    flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
+    border-radius:14px;padding:12px;text-align:center;
+  }
+  .stat .num{font-size:20px;font-weight:800;}
+  .stat .lbl{font-size:11px;color:var(--text-muted);margin-top:2px;}
+  .stat.attended .num{color:var(--success);}
+  .stat.left .num{color:var(--gold-400);}
+
+  .video-wrap{
+    position:relative;border-radius:18px;overflow:hidden;
+    aspect-ratio:1/1;background:#000;border:1px solid rgba(255,255,255,0.1);
+  }
+  video{width:100%;height:100%;object-fit:cover;}
+  .scan-frame{
+    position:absolute;inset:14%;border:3px solid var(--gold-500);border-radius:18px;
+    box-shadow:0 0 0 2000px rgba(0,0,0,0.35);pointer-events:none;
+  }
+  .scan-status{
+    position:absolute;bottom:12px;left:0;right:0;text-align:center;
+    font-size:12.5px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.6);
+  }
+  .cam-error{
+    text-align:center;padding:30px 16px;color:var(--text-muted);font-size:13.5px;line-height:1.8;
+  }
+
+  .footer-controls{display:flex;gap:10px;margin-top:14px;}
+  .footer-controls .btn{flex:1;}
+
+  /* Result overlay */
+  #resultOverlay{
+    position:fixed;inset:0;background:rgba(5,12,26,0.92);
+    display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;
+  }
+  .result-card{
+    width:100%;max-width:400px;border-radius:22px;padding:36px 26px;text-align:center;
+    background:var(--navy-800);border:1.5px solid rgba(255,255,255,0.12);
+  }
+  .result-card.valid{border-color:var(--success);box-shadow:0 0 0 4px rgba(61,220,151,0.12);}
+  .result-card.used{border-color:var(--warning);box-shadow:0 0 0 4px rgba(255,185,70,0.12);}
+  .result-card.invalid{border-color:var(--danger);box-shadow:0 0 0 4px rgba(255,107,107,0.12);}
+  .result-icon{font-size:52px;margin-bottom:10px;}
+  .result-title{font-size:20px;font-weight:800;margin:0 0 6px;}
+  .result-card.valid .result-title{color:var(--success);}
+  .result-card.used .result-title{color:var(--warning);}
+  .result-card.invalid .result-title{color:var(--danger);}
+  .result-name{font-size:16px;font-weight:700;margin:14px 0 2px;}
+  .result-sub{font-size:12.5px;color:var(--text-muted);margin:0;}
+  .result-meta{
+    margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.1);
+    font-size:12px;color:var(--text-muted);
+  }
+  .countdown{margin-top:20px;font-size:12px;color:var(--text-muted);}
+  .footer-note{text-align:center;color:var(--text-muted);font-size:11px;margin-top:18px;line-height:1.8;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <img src="data:image/jpeg;base64,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" alt="أسرة رؤية">
+    <div>
+      <h1>نظام تسجيل الحضور</h1>
+      <p>أسرة رؤية — رؤية × المستقبل المهني</p>
+    </div>
+  </header>
+
+  <!-- ============ إعدادات الاتصال (مرة واحدة فقط) ============ -->
+  <div class="panel" id="configPanel">
+    <h2>⚙️ إعدادات الاتصال</h2>
+    <label>Supabase Project URL</label>
+    <input type="text" id="supabaseUrl" placeholder="https://xxxxxxxx.supabase.co">
+    <label>Supabase anon key</label>
+    <input type="text" id="supabaseKey" placeholder="eyJhbGciOi...">
+    <label>اسم القائم بالتسجيل (هيتسجل مع كل عملية دخول)</label>
+    <input type="text" id="scannerName" placeholder="مثال: أحمد - فريق الاستقبال">
+    <button class="btn btn-primary" id="startBtn">حفظ وبدء المسح ✦</button>
+    <p class="footer-note">الإعدادات دي بتتحفظ على الجهاز ده بس عشان ما تكررش كتابتها، ومش بتتبعت لأي حد تاني.</p>
+  </div>
+
+  <!-- ============ شاشة المسح ============ -->
+  <div class="panel hidden" id="scannerPanel">
+    <div class="stats-row">
+      <div class="stat attended"><div class="num" id="statAttended">—</div><div class="lbl">حضروا</div></div>
+      <div class="stat left"><div class="num" id="statLeft">—</div><div class="lbl">لسه ما حضروش</div></div>
+    </div>
+
+    <div class="video-wrap" id="videoWrap">
+      <video id="video" playsinline muted></video>
+      <div class="scan-frame"></div>
+      <div class="scan-status" id="scanStatus">جاري البحث عن QR...</div>
+    </div>
+
+    <div class="footer-controls">
+      <button class="btn btn-ghost" id="settingsBtn">⚙️ الإعدادات</button>
+      <button class="btn btn-ghost" id="refreshStatsBtn">🔄 تحديث العداد</button>
+    </div>
+  </div>
+
+  <p class="footer-note">أسرة رؤية الطلابية · كل QR بيتفعّل لدخول واحد بس، ومحمي من التكرار حتى لو اتمسح مرتين في نفس اللحظة.</p>
+</div>
+
+<!-- ============ نتيجة المسح ============ -->
+<div class="hidden" id="resultOverlay">
+  <div class="result-card" id="resultCard">
+    <div class="result-icon" id="resultIcon">✅</div>
+    <h2 class="result-title" id="resultTitle">تم الدخول</h2>
+    <div class="result-name" id="resultName"></div>
+    <p class="result-sub" id="resultSub"></p>
+    <div class="result-meta" id="resultMeta"></div>
+    <div class="countdown" id="countdown">هيرجع يمسح تلقائيًا خلال <span id="countdownNum">3</span>...</div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// State & persisted config
+// ============================================================
+let SUPABASE_URL = localStorage.getItem('roya_supabase_url') || '';
+let SUPABASE_KEY = localStorage.getItem('roya_supabase_key') || '';
+let SCANNER_NAME = localStorage.getItem('roya_scanner_name') || '';
+
+const configPanel   = document.getElementById('configPanel');
+const scannerPanel  = document.getElementById('scannerPanel');
+const resultOverlay = document.getElementById('resultOverlay');
+const video         = document.getElementById('video');
+const videoWrap     = document.getElementById('videoWrap');
+const scanStatus    = document.getElementById('scanStatus');
+
+document.getElementById('supabaseUrl').value = SUPABASE_URL;
+document.getElementById('supabaseKey').value = SUPABASE_KEY;
+document.getElementById('scannerName').value = SCANNER_NAME;
+
+let stream = null;
+let scanning = false;
+let paused = false;
+let canvas = document.createElement('canvas');
+let ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+// ============================================================
+// Setup / start
+// ============================================================
+document.getElementById('startBtn').addEventListener('click', () => {
+  SUPABASE_URL = document.getElementById('supabaseUrl').value.trim().replace(/\/$/, '');
+  SUPABASE_KEY = document.getElementById('supabaseKey').value.trim();
+  SCANNER_NAME = document.getElementById('scannerName').value.trim();
+
+  if (!SUPABASE_URL || !SUPABASE_KEY || !SCANNER_NAME) {
+    alert('من فضلك املأ كل الحقول الثلاثة قبل البدء.');
+    return;
+  }
+
+  localStorage.setItem('roya_supabase_url', SUPABASE_URL);
+  localStorage.setItem('roya_supabase_key', SUPABASE_KEY);
+  localStorage.setItem('roya_scanner_name', SCANNER_NAME);
+
+  configPanel.classList.add('hidden');
+  scannerPanel.classList.remove('hidden');
+  startCamera();
+  refreshStats();
+});
+
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  stopCamera();
+  scannerPanel.classList.add('hidden');
+  configPanel.classList.remove('hidden');
+});
+
+document.getElementById('refreshStatsBtn').addEventListener('click', refreshStats);
+
+// Auto-skip the config screen if already configured on this device
+if (SUPABASE_URL && SUPABASE_KEY && SCANNER_NAME) {
+  configPanel.classList.add('hidden');
+  scannerPanel.classList.remove('hidden');
+  startCamera();
+  refreshStats();
+}
+
+// ============================================================
+// Camera + scan loop
+// ============================================================
+async function startCamera(){
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+    scanning = true;
+    requestAnimationFrame(scanLoop);
+  }catch(err){
+    videoWrap.innerHTML = `<div class="cam-error">🚫 مش قادرين نوصل للكاميرا.<br>تأكد إنك سمحت بصلاحية الكاميرا للمتصفح، وإن الصفحة شغالة على HTTPS.<br><br><small>${err.message || err}</small></div>`;
+  }
+}
+
+function stopCamera(){
+  scanning = false;
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+}
+
+function scanLoop(){
+  if (!scanning) return;
+
+  if (!paused && video.readyState === video.HAVE_ENOUGH_DATA) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+
+    if (code && code.data) {
+      paused = true;
+      scanStatus.textContent = 'جاري التحقق...';
+      handleToken(code.data.trim());
+    }
+  }
+  requestAnimationFrame(scanLoop);
+}
+
+// ============================================================
+// Supabase RPC call — the ONLY thing this app is allowed to do
+// (the anon key can only execute check_in_by_qr / get_attendance_summary)
+// ============================================================
+async function handleToken(token){
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/check_in_by_qr`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({ p_token: token, p_scanner_name: SCANNER_NAME })
+    });
+
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    const rows = await res.json();
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    showResult(row);
+    refreshStats();
+  }catch(err){
+    showResult({ result: 'ERROR', full_name: null, university_id: null, checked_in_at: null, _raw: err.message });
+  }
+}
+
+// ============================================================
+// Result overlay
+// ============================================================
+function showResult(row){
+  const card = document.getElementById('resultCard');
+  const icon = document.getElementById('resultIcon');
+  const title = document.getElementById('resultTitle');
+  const name = document.getElementById('resultName');
+  const sub = document.getElementById('resultSub');
+  const meta = document.getElementById('resultMeta');
+
+  card.className = 'result-card';
+  meta.textContent = '';
+
+  if (row.result === 'VALID') {
+    card.classList.add('valid');
+    icon.textContent = '✅';
+    title.textContent = 'تم تسجيل الدخول';
+    name.textContent = row.full_name || '';
+    sub.textContent = row.university_id ? `الرقم الجامعي: ${row.university_id}` : '';
+  } else if (row.result === 'ALREADY_USED') {
+    card.classList.add('used');
+    icon.textContent = '⚠️';
+    title.textContent = 'الكود ده اتستخدم قبل كده';
+    name.textContent = row.full_name || '';
+    sub.textContent = row.university_id ? `الرقم الجامعي: ${row.university_id}` : '';
+    if (row.checked_in_at) {
+      const t = new Date(row.checked_in_at);
+      meta.textContent = 'دخل أول مرة الساعة: ' + t.toLocaleTimeString('ar-EG');
+    }
+  } else if (row.result === 'INVALID') {
+    card.classList.add('invalid');
+    icon.textContent = '❌';
+    title.textContent = 'كود غير صحيح';
+    name.textContent = '';
+    sub.textContent = 'الـQR ده مش موجود في قاعدة بيانات المسجلين';
+  } else {
+    card.classList.add('invalid');
+    icon.textContent = '⚠️';
+    title.textContent = 'حصل خطأ في الاتصال';
+    name.textContent = '';
+    sub.textContent = row._raw || 'تأكد من اتصال الإنترنت وإعدادات الـSupabase';
+  }
+
+  resultOverlay.classList.remove('hidden');
+
+  let secondsLeft = 3;
+  const countdownNum = document.getElementById('countdownNum');
+  countdownNum.textContent = secondsLeft;
+  const timer = setInterval(() => {
+    secondsLeft -= 1;
+    countdownNum.textContent = secondsLeft;
+    if (secondsLeft <= 0) {
+      clearInterval(timer);
+      resultOverlay.classList.add('hidden');
+      scanStatus.textContent = 'جاري البحث عن QR...';
+      paused = false;
+    }
+  }, 1000);
+}
+
+// Tap anywhere on the result card to resume scanning immediately
+resultOverlay.addEventListener('click', () => {
+  resultOverlay.classList.add('hidden');
+  scanStatus.textContent = 'جاري البحث عن QR...';
+  paused = false;
+});
+
+// ============================================================
+// Live attendance counter
+// ============================================================
+async function refreshStats(){
+  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_attendance_summary`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({})
+    });
+    if (!res.ok) return;
+    const rows = await res.json();
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    document.getElementById('statAttended').textContent = row.total_attended ?? '—';
+    document.getElementById('statLeft').textContent = row.total_not_arrived ?? '—';
+  }catch(e){ /* silent — counter is a nice-to-have, not critical */ }
+}
+</script>
+</body>
+</html>
